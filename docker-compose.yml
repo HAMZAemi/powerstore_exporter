@@ -1,0 +1,71 @@
+volumes:
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/prometheus/data
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/grafana/data
+  
+services:
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node-exporter
+    command:
+      - '--path.rootfs=/host'
+    networks:
+      - exporters-network
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - '--web.enable-lifecycle'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - exporters-network
+    ports:
+      - 9091:9090
+    restart: unless-stopped
+
+    volumes:
+      - /data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - /data/prometheus/targets.json:/etc/prometheus/targets.json
+      - prometheus_data:/prometheus
+
+  dorado_exporter:
+    container_name: dorado_exporter
+    build:
+      context: ./dorado_exporter/dorado_exporter
+      dockerfile: ./dorado_exporter/Dockerfile
+    networks:
+      - exporters-network
+    ports:
+      - 9720:9720
+    restart: always
+
+  grafana:
+    image: grafana/grafana:7.5.10
+    container_name: grafana
+    networks:
+      - exporters-network
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_INSTALL_PLUGINS=yesoreyeram-boomtable-panel
+
+networks:
+  exporters-network: {}  # Déclaration du réseau
+
